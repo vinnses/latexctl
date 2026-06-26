@@ -547,6 +547,25 @@ run_unknown_subcommand_test() (
   assert_file_contains "$output_file" "Unknown subcommand"
 )
 
+run_symlink_entrypoint_test() (
+  set -euo pipefail
+
+  local sandbox
+  local output
+  sandbox="$(setup_sandbox basic-biblatex)"
+  trap 'rm -rf "$sandbox"' EXIT
+
+  mkdir -p "$sandbox/home/.local/bin"
+  ln -s "$sandbox/repo/latexctl/bin/latexctl" "$sandbox/home/.local/bin/latexctl"
+
+  output="$(
+    cd "$sandbox/repo"
+    "$sandbox/home/.local/bin/latexctl" help
+  )"
+
+  [[ "${output}" == *"Subcommands:"* ]] || fail "symlinked entrypoint did not load its tooling root"
+)
+
 run_missing_tex_package_classification_test
 run_missing_local_asset_classification_test
 run_missing_pathful_local_file_classification_test
@@ -559,5 +578,6 @@ run_bootstrap_uses_internal_scaffold_test
 run_ctan_mirror_uses_env_override_test
 run_ctan_mirror_uses_first_configured_mirror_test
 run_unknown_subcommand_test
+run_symlink_entrypoint_test
 
 echo "PASS: test_latexctl.sh"
