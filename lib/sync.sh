@@ -569,6 +569,11 @@ if [[ ${#source_files[@]} -gt 0 ]]; then
     fi
 
     if kpsewhich "$filename" >/dev/null 2>&1; then
+      if [[ "${kind}" == "language" ]]; then
+        if hyphen_package="$(resolve_language_hyphenation_owner "${logical_name}")"; then
+          resolved_packages+=("${hyphen_package}")
+        fi
+      fi
       continue
     fi
 

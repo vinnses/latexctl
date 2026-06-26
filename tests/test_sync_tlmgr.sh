@@ -289,7 +289,11 @@ case "${1:-}" in
     printf '/usr/local/texlive/texmf-dist/%s\n' "$1"
     ;;
   brazilian.ldf)
-    exit 1
+    if [[ "${MOCK_BABEL_LDF_INSTALLED:-0}" == "1" ]]; then
+      printf '/usr/local/texlive/texmf-dist/brazilian.ldf\n'
+    else
+      exit 1
+    fi
     ;;
   babel-brazilian.tex)
     printf '%s/babel-brazilian.tex\n' "${MOCK_TEXMF_ROOT:?}"
@@ -449,6 +453,31 @@ run_babel_language_resolution_test() (
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /loadhyph-pt.tex"
   assert_log_contains "$sandbox/logs/tlmgr.log" "fmtutil-user --all"
   assert_log_not_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /english.ldf"
+)
+
+run_installed_babel_missing_hyphenation_test() (
+  set -euo pipefail
+
+  local sandbox
+  sandbox="$(setup_sandbox babel-language)"
+  trap 'rm -rf "$sandbox"' EXIT
+
+  export HOME="$sandbox/home"
+  export TEXMFHOME="$sandbox/texmf-home"
+  export PATH="$sandbox/bin:$PATH"
+  export TLMGR_LOG="$sandbox/logs/tlmgr.log"
+  export TLMGR_STATE="$sandbox/state/installed.txt"
+  export MOCK_TEXMF_ROOT="$sandbox/texmf-dist"
+  export MOCK_BABEL_LDF_INSTALLED=1
+  mkdir -p "$MOCK_TEXMF_ROOT"
+  printf '%s\n' '\BabelBeforeIni{pt-BR}{%}' > "$MOCK_TEXMF_ROOT/babel-brazilian.tex"
+
+  "$sandbox/repo/latexctl/bin/latexctl" sync
+
+  assert_file_contains "$sandbox/repo/.used_packages" "hyphen-portuguese"
+  assert_file_not_contains "$sandbox/repo/.used_packages" "babel-portuges"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install hyphen-portuguese"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "fmtutil-user --all"
 )
 
 run_ambiguous_resolution_test() (
@@ -1302,6 +1331,7 @@ run_tool_override_test
 run_tool_override_without_sources_test
 run_documentclass_resolution_test
 run_babel_language_resolution_test
+run_installed_babel_missing_hyphenation_test
 run_ambiguous_resolution_test
 run_override_resolution_test
 run_font_metric_resolution_prefers_tfm_owner_test
