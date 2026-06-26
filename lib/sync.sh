@@ -50,6 +50,7 @@ Description:
 Behavior:
   - Scans .tex/.cls/.sty in tex/
   - Parses \usepackage{...} and \RequirePackage{...}
+  - Resolves Babel language options through their TeX Live .ldf owners
   - Detects biblatex backend=biber and includes biber as a system tool when needed
   - Ignores comments (%), supports inline comments and comma lists
   - Writes sorted unique package list to .used_packages
@@ -109,12 +110,26 @@ scan_tex_modules() {
       }
     }
 
-    while (/\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/sg) {
-      my $list = $1;
+    while (/\\(?:usepackage|RequirePackage)\s*(?:\[([^\]]*)\]\s*)?\{([^}]*)\}/sg) {
+      my $options = $1 // q{};
+      my $list = $2;
       for my $pkg (split /,/, $list) {
         $pkg =~ s/^\s+|\s+$//g;
         next if $pkg eq q{};
         print "package:$pkg\n";
+
+        next if $pkg ne q{babel};
+        for my $option (split /,/, $options) {
+          $option =~ s/^\s+|\s+$//g;
+          if ($option =~ /^main\s*=\s*(.+)$/) {
+            $option = $1;
+            $option =~ s/^\s+|\s+$//g;
+          } elsif ($option =~ /=/) {
+            next;
+          }
+          next if $option eq q{};
+          print "language:$option\n";
+        }
       }
     }
   ' "${source_files[@]}" | LC_ALL=C sort -u
@@ -140,6 +155,9 @@ module_filename() {
       ;;
     package)
       printf '%s.sty\n' "$name"
+      ;;
+    language)
+      printf '%s.ldf\n' "$name"
       ;;
     *)
       return 1

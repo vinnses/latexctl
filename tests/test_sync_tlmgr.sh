@@ -158,6 +158,10 @@ case "${1:-}" in
       exit 1
     fi
 
+    if [[ "${2:-}" == "babel-portuges" ]]; then
+      exit 1
+    fi
+
     exit 1
     ;;
   search)
@@ -178,6 +182,11 @@ case "${1:-}" in
           exit 1
           ;;
       esac
+      exit 0
+    fi
+
+    if [[ "${2:-}" == "--global" && "${3:-}" == "--file" && "${4:-}" == "/brazilian.ldf" ]]; then
+      printf 'babel-portuges:\n\ttexmf-dist/tex/generic/babel-portuges/brazilian.ldf\n'
       exit 0
     fi
 
@@ -265,6 +274,12 @@ case "${1:-}" in
     exit 1
     ;;
   memoir.cls)
+    exit 1
+    ;;
+  babel.sty|english.ldf)
+    printf '/usr/local/texlive/texmf-dist/%s\n' "$1"
+    ;;
+  brazilian.ldf)
     exit 1
     ;;
   *)
@@ -386,6 +401,27 @@ run_documentclass_resolution_test() (
   assert_file_contains "$sandbox/repo/.used_packages" "memoir"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /memoir.cls"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install memoir"
+)
+
+run_babel_language_resolution_test() (
+  set -euo pipefail
+
+  local sandbox
+  sandbox="$(setup_sandbox babel-language)"
+  trap 'rm -rf "$sandbox"' EXIT
+
+  export HOME="$sandbox/home"
+  export TEXMFHOME="$sandbox/texmf-home"
+  export PATH="$sandbox/bin:$PATH"
+  export TLMGR_LOG="$sandbox/logs/tlmgr.log"
+  export TLMGR_STATE="$sandbox/state/installed.txt"
+
+  "$sandbox/repo/latexctl/bin/latexctl" sync
+
+  assert_file_contains "$sandbox/repo/.used_packages" "babel-portuges"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /brazilian.ldf"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install babel-portuges"
+  assert_log_not_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /english.ldf"
 )
 
 run_ambiguous_resolution_test() (
@@ -1238,6 +1274,7 @@ run_basic_biblatex_test
 run_tool_override_test
 run_tool_override_without_sources_test
 run_documentclass_resolution_test
+run_babel_language_resolution_test
 run_ambiguous_resolution_test
 run_override_resolution_test
 run_font_metric_resolution_prefers_tfm_owner_test
