@@ -535,10 +535,6 @@ resolve_language_hyphenation_owner() {
   language_code="${language_code,,}"
   hyphen_file="loadhyph-${language_code}.tex"
 
-  if kpsewhich "${hyphen_file}" >/dev/null 2>&1; then
-    return 1
-  fi
-
   resolve_package_owner "hyphenation" "${language_code}" "${hyphen_file}"
 }
 
