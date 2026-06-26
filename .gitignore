@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+*.tmp
+*.swp
+/.latex-errors/
+/.used_packages
+/.used_tools
+/build-report.md
