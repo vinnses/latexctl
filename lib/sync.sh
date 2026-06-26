@@ -14,7 +14,6 @@ TOOL_FILE="${REPO_ROOT}/.used_tools"
 PACKAGE_OVERRIDE_FILE="${LATEXCTL_PACKAGE_OVERRIDE_FILE:-${TOOLING_ROOT}/package-overrides.conf}"
 TOOLS_OVERRIDE_FILE="${REPO_ROOT}/extra-tools.txt"
 declare -a LAST_INSTALLED_USER_PACKAGES=()
-REBUILD_USER_FORMATS=0
 
 log() {
   echo "[${SCRIPT_NAME}] $*"
@@ -508,12 +507,6 @@ install_user_packages() {
   LAST_INSTALLED_USER_PACKAGES=("${missing_packages[@]}")
   log "Successfully installed missing packages."
 
-  for pkg in "${missing_packages[@]}"; do
-    if [[ "${pkg}" == hyphen-* ]]; then
-      REBUILD_USER_FORMATS=1
-      break
-    fi
-  done
 }
 
 resolve_language_hyphenation_owner() {
@@ -559,6 +552,7 @@ if [[ "${MODE}" == "resolve-file" ]]; then
 fi
 
 resolved_packages=()
+resolved_tools=()
 if [[ ${#source_files[@]} -gt 0 ]]; then
   while IFS=: read -r kind logical_name; do
     [[ -n "${kind}" && -n "${logical_name}" ]] || continue
@@ -571,7 +565,7 @@ if [[ ${#source_files[@]} -gt 0 ]]; then
     if kpsewhich "$filename" >/dev/null 2>&1; then
       if [[ "${kind}" == "language" ]]; then
         if hyphen_package="$(resolve_language_hyphenation_owner "${logical_name}")"; then
-          resolved_packages+=("${hyphen_package}")
+          resolved_tools+=("${hyphen_package}")
         fi
       fi
       continue
@@ -586,7 +580,7 @@ if [[ ${#source_files[@]} -gt 0 ]]; then
 
     if [[ "${kind}" == "language" ]]; then
       if hyphen_package="$(resolve_language_hyphenation_owner "${logical_name}")"; then
-        resolved_packages+=("${hyphen_package}")
+        resolved_tools+=("${hyphen_package}")
       fi
     fi
   done < <(scan_tex_modules)
@@ -606,10 +600,10 @@ log "Wrote package state to ${PACKAGE_FILE}."
 
 mapfile -t required_packages < <(awk 'NF && $1 !~ /^#/' "${PACKAGE_FILE}" | LC_ALL=C sort -u)
 mapfile -t inferred_tools < <(infer_required_tools)
-if [[ ${#inferred_tools[@]} -eq 0 ]]; then
+if [[ ${#inferred_tools[@]} -eq 0 && ${#resolved_tools[@]} -eq 0 ]]; then
   : > "${TOOL_FILE}"
 else
-  printf '%s\n' "${inferred_tools[@]}" > "${TOOL_FILE}"
+  printf '%s\n' "${inferred_tools[@]}" "${resolved_tools[@]}" | awk 'NF' | LC_ALL=C sort -u > "${TOOL_FILE}"
 fi
 
 log "Wrote tool state to ${TOOL_FILE}."
@@ -621,10 +615,6 @@ else
     exit 1
   fi
 
-  if (( REBUILD_USER_FORMATS )); then
-    log "Rebuilding user formats for newly installed hyphenation patterns..."
-    fmtutil-user --all >/dev/null
-  fi
 fi
 
 mapfile -t required_tools < <(awk 'NF && $1 !~ /^#/' "${TOOL_FILE}" | LC_ALL=C sort -u)

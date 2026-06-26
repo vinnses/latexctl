@@ -308,14 +308,6 @@ esac
 EOF
   chmod +x "$sandbox/bin/kpsewhich"
 
-  cat > "$sandbox/bin/fmtutil-user" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-: "${TLMGR_LOG:?}"
-printf 'fmtutil-user %s\n' "$*" >> "$TLMGR_LOG"
-EOF
-  chmod +x "$sandbox/bin/fmtutil-user"
-
   cat > "$sandbox/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -447,11 +439,11 @@ run_babel_language_resolution_test() (
   "$sandbox/repo/latexctl/bin/latexctl" sync
 
   assert_file_contains "$sandbox/repo/.used_packages" "babel-portuges"
-  assert_file_contains "$sandbox/repo/.used_packages" "hyphen-portuguese"
+  assert_file_contains "$sandbox/repo/.used_tools" "hyphen-portuguese"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /brazilian.ldf"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install babel-portuges"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /loadhyph-pt.tex"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "fmtutil-user --all"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install hyphen-portuguese"
   assert_log_not_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /english.ldf"
 )
 
@@ -474,10 +466,9 @@ run_installed_babel_missing_hyphenation_test() (
 
   "$sandbox/repo/latexctl/bin/latexctl" sync
 
-  assert_file_contains "$sandbox/repo/.used_packages" "hyphen-portuguese"
+  assert_file_contains "$sandbox/repo/.used_tools" "hyphen-portuguese"
   assert_file_not_contains "$sandbox/repo/.used_packages" "babel-portuges"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install hyphen-portuguese"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "fmtutil-user --all"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install hyphen-portuguese"
 )
 
 run_ambiguous_resolution_test() (
