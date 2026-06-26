@@ -162,6 +162,10 @@ case "${1:-}" in
       exit 1
     fi
 
+    if [[ "${2:-}" == "hyphen-portuguese" ]]; then
+      exit 1
+    fi
+
     exit 1
     ;;
   search)
@@ -187,6 +191,11 @@ case "${1:-}" in
 
     if [[ "${2:-}" == "--global" && "${3:-}" == "--file" && "${4:-}" == "/brazilian.ldf" ]]; then
       printf 'babel-portuges:\n\ttexmf-dist/tex/generic/babel-portuges/brazilian.ldf\n'
+      exit 0
+    fi
+
+    if [[ "${2:-}" == "--global" && "${3:-}" == "--file" && "${4:-}" == "/loadhyph-pt.tex" ]]; then
+      printf 'hyphen-portuguese:\n\ttexmf-dist/tex/generic/hyph-utf8/loadhyph/loadhyph-pt.tex\n'
       exit 0
     fi
 
@@ -282,12 +291,26 @@ case "${1:-}" in
   brazilian.ldf)
     exit 1
     ;;
+  babel-brazilian.tex)
+    printf '%s/babel-brazilian.tex\n' "${MOCK_TEXMF_ROOT:?}"
+    ;;
+  loadhyph-pt.tex)
+    exit 1
+    ;;
   *)
     exit 1
     ;;
 esac
 EOF
   chmod +x "$sandbox/bin/kpsewhich"
+
+  cat > "$sandbox/bin/fmtutil-user" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+: "${TLMGR_LOG:?}"
+printf 'fmtutil-user %s\n' "$*" >> "$TLMGR_LOG"
+EOF
+  chmod +x "$sandbox/bin/fmtutil-user"
 
   cat > "$sandbox/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
@@ -314,7 +337,6 @@ run_basic_biblatex_test() (
   export PATH="$sandbox/bin:$PATH"
   export TLMGR_LOG="$sandbox/logs/tlmgr.log"
   export TLMGR_STATE="$sandbox/state/installed.txt"
-
   "$sandbox/repo/latexctl/bin/latexctl" sync
 
   assert_file_contains "$sandbox/repo/.used_packages" "biblatex"
@@ -372,7 +394,6 @@ EOF
   export PATH="$sandbox/bin:$PATH"
   export TLMGR_LOG="$sandbox/logs/tlmgr.log"
   export TLMGR_STATE="$sandbox/state/installed.txt"
-
   "$sandbox/repo/latexctl/bin/latexctl" sync
 
   if [[ -s "$sandbox/repo/.used_packages" ]]; then
@@ -415,12 +436,18 @@ run_babel_language_resolution_test() (
   export PATH="$sandbox/bin:$PATH"
   export TLMGR_LOG="$sandbox/logs/tlmgr.log"
   export TLMGR_STATE="$sandbox/state/installed.txt"
+  export MOCK_TEXMF_ROOT="$sandbox/texmf-dist"
+  mkdir -p "$MOCK_TEXMF_ROOT"
+  printf '%s\n' '\BabelBeforeIni{pt-BR}{%}' > "$MOCK_TEXMF_ROOT/babel-brazilian.tex"
 
   "$sandbox/repo/latexctl/bin/latexctl" sync
 
   assert_file_contains "$sandbox/repo/.used_packages" "babel-portuges"
+  assert_file_contains "$sandbox/repo/.used_packages" "hyphen-portuguese"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /brazilian.ldf"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install babel-portuges"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /loadhyph-pt.tex"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "fmtutil-user --all"
   assert_log_not_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /english.ldf"
 )
 

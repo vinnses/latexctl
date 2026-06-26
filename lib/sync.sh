@@ -14,6 +14,7 @@ TOOL_FILE="${REPO_ROOT}/.used_tools"
 PACKAGE_OVERRIDE_FILE="${LATEXCTL_PACKAGE_OVERRIDE_FILE:-${TOOLING_ROOT}/package-overrides.conf}"
 TOOLS_OVERRIDE_FILE="${REPO_ROOT}/extra-tools.txt"
 declare -a LAST_INSTALLED_USER_PACKAGES=()
+REBUILD_USER_FORMATS=0
 
 log() {
   echo "[${SCRIPT_NAME}] $*"
@@ -264,9 +265,10 @@ infer_required_tools() {
 
 collect_search_hits() {
   local search_pattern="$1"
+  local allow_hyphen_packages="${2:-0}"
 
   tlmgr search --global --file "${search_pattern}" 2>/dev/null \
-    | awk -F: '
+    | awk -F: -v allow_hyphen_packages="${allow_hyphen_packages}" '
         /:$/ {
           package = $1
           next
@@ -274,7 +276,8 @@ collect_search_hits() {
         /^[[:space:]]+/ {
           path = $0
           sub(/^[[:space:]]+/, "", path)
-          if (package ~ /^(collection-|scheme-|texlive-|00texlive|hyphen-)/) {
+          if (package ~ /^(collection-|scheme-|texlive-|00texlive)/ ||
+              (!allow_hyphen_packages && package ~ /^hyphen-/)) {
             next
           }
           if (package ~ /-doc$/) {
@@ -388,6 +391,11 @@ resolve_package_owner() {
   local candidates=()
   local search_hits=()
   local preferred_package
+  local allow_hyphen_packages=0
+
+  if [[ "${kind}" == "hyphenation" ]]; then
+    allow_hyphen_packages=1
+  fi
 
   if override_package="$(lookup_package_override "${kind}" "${logical_name}" "${filename}")"; then
     printf '%s\n' "${override_package}"
@@ -399,7 +407,7 @@ resolve_package_owner() {
     return 0
   fi
 
-  mapfile -t search_hits < <(collect_search_hits "/${filename}")
+  mapfile -t search_hits < <(collect_search_hits "/${filename}" "${allow_hyphen_packages}")
   if [[ ${#search_hits[@]} -gt 0 ]]; then
     mapfile -t search_hits < <(printf '%s\n' "${search_hits[@]}" | filter_search_hits_by_basename exact "${filename}")
   fi
@@ -410,7 +418,7 @@ resolve_package_owner() {
 
   # If not found, try searching with a wildcard extension (useful for font metrics)
   if [[ ${#candidates[@]} -eq 0 && "${filename}" != *.* ]]; then
-      mapfile -t search_hits < <(collect_search_hits "/${filename}\\..*")
+      mapfile -t search_hits < <(collect_search_hits "/${filename}\\..*" "${allow_hyphen_packages}")
       if [[ ${#search_hits[@]} -gt 0 ]]; then
         mapfile -t search_hits < <(printf '%s\n' "${search_hits[@]}" | filter_search_hits_by_basename with-extension "${filename}")
       fi
@@ -499,6 +507,37 @@ install_user_packages() {
 
   LAST_INSTALLED_USER_PACKAGES=("${missing_packages[@]}")
   log "Successfully installed missing packages."
+
+  for pkg in "${missing_packages[@]}"; do
+    if [[ "${pkg}" == hyphen-* ]]; then
+      REBUILD_USER_FORMATS=1
+      break
+    fi
+  done
+}
+
+resolve_language_hyphenation_owner() {
+  local language="$1"
+  local locale_file
+  local locale_code
+  local language_code
+  local hyphen_file
+
+  locale_file="$(kpsewhich "babel-${language}.tex" 2>/dev/null || true)"
+  [[ -f "${locale_file}" ]] || return 1
+
+  locale_code="$(sed -n 's/.*\\BabelBeforeIni{\([^}]*\)}.*/\1/p' "${locale_file}" | head -n 1)"
+  [[ -n "${locale_code}" ]] || return 1
+
+  language_code="${locale_code%%-*}"
+  language_code="${language_code,,}"
+  hyphen_file="loadhyph-${language_code}.tex"
+
+  if kpsewhich "${hyphen_file}" >/dev/null 2>&1; then
+    return 1
+  fi
+
+  resolve_package_owner "hyphenation" "${language_code}" "${hyphen_file}"
 }
 
 if [[ "${MODE}" == "resolve-file" ]]; then
@@ -539,6 +578,12 @@ if [[ ${#source_files[@]} -gt 0 ]]; then
       log "Error: unable to resolve TeX Live package for ${filename}" >&2
       exit 1
     fi
+
+    if [[ "${kind}" == "language" ]]; then
+      if hyphen_package="$(resolve_language_hyphenation_owner "${logical_name}")"; then
+        resolved_packages+=("${hyphen_package}")
+      fi
+    fi
   done < <(scan_tex_modules)
 fi
 
@@ -569,6 +614,11 @@ if [[ ${#required_packages[@]} -eq 0 ]]; then
 else
   if ! install_user_packages "${required_packages[@]}"; then
     exit 1
+  fi
+
+  if (( REBUILD_USER_FORMATS )); then
+    log "Rebuilding user formats for newly installed hyphenation patterns..."
+    fmtutil-user --all >/dev/null
   fi
 fi
 
