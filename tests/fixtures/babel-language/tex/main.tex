@@ -1,5 +1,8 @@
 \documentclass{article}
-\usepackage[brazilian,main=english]{babel}
+\usepackage{babel}
 \begin{document}
+\IfLanguageName{brazilian}{Teste.}{Test.}
+\begin{otherlanguage}{brazilian}
 Teste.
+\end{otherlanguage}
 \end{document}

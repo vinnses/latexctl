@@ -132,6 +132,18 @@ scan_tex_modules() {
         }
       }
     }
+
+    while (/\\(?:IfLanguageName|selectlanguage|foreignlanguage)\s*\{([^}]*)\}/sg) {
+      my $language = $1;
+      $language =~ s/^\s+|\s+$//g;
+      print "language:$language\n" if $language ne q{};
+    }
+
+    while (/\\begin\s*\{otherlanguage\*?\}\s*\{([^}]*)\}/sg) {
+      my $language = $1;
+      $language =~ s/^\s+|\s+$//g;
+      print "language:$language\n" if $language ne q{};
+    }
   ' "${source_files[@]}" | LC_ALL=C sort -u
 }
 
