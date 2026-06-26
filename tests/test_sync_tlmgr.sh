@@ -148,10 +148,19 @@ case "${1:-}" in
 
     if [[ "${2:-}" == "--only-installed" && "${3:-}" == "biber" ]]; then
       if is_installed "biber"; then
-        printf 'package:     biber\n'
+        printf 'package:     biber\ninstalled:   Yes\n'
         exit 0
       fi
       exit 1
+    fi
+
+    if [[ "${2:-}" == "--only-installed" && -n "${3:-}" ]]; then
+      if is_installed "${3}"; then
+        printf 'package:     %s\ninstalled:   Yes\n' "${3}"
+      else
+        printf 'package:     %s\ninstalled:   No\n' "${3}"
+      fi
+      exit 0
     fi
 
     if [[ "${2:-}" == "memoir" ]]; then
@@ -337,7 +346,7 @@ run_basic_biblatex_test() (
 
   assert_file_contains "$sandbox/repo/.used_packages" "biblatex"
   assert_file_contains "$sandbox/repo/.used_tools" "biber"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install biber"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo $sandbox/bin/tlmgr install biber"
 )
 
 run_tool_override_test() (
@@ -367,7 +376,7 @@ EOF
   assert_file_contains "$sandbox/repo/.used_tools" "latexindent"
   assert_file_not_contains "$sandbox/repo/.used_packages" "chktex"
   assert_file_not_contains "$sandbox/repo/.used_packages" "latexindent"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install chktex latexindent"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo $sandbox/bin/tlmgr install chktex latexindent"
 )
 
 run_tool_override_without_sources_test() (
@@ -396,7 +405,7 @@ EOF
     fail "expected no package entries for empty tex tree"
   fi
   assert_file_contains "$sandbox/repo/.used_tools" "latexindent"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install latexindent"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo $sandbox/bin/tlmgr install latexindent"
 )
 
 run_documentclass_resolution_test() (
@@ -443,7 +452,7 @@ run_babel_language_resolution_test() (
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /brazilian.ldf"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr --usermode install babel-portuges"
   assert_log_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /loadhyph-pt.tex"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install hyphen-portuguese"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo $sandbox/bin/tlmgr install hyphen-portuguese"
   assert_log_not_contains "$sandbox/logs/tlmgr.log" "tlmgr search --global --file /english.ldf"
 )
 
@@ -468,7 +477,7 @@ run_installed_babel_missing_hyphenation_test() (
 
   assert_file_contains "$sandbox/repo/.used_tools" "hyphen-portuguese"
   assert_file_not_contains "$sandbox/repo/.used_packages" "babel-portuges"
-  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install hyphen-portuguese"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo $sandbox/bin/tlmgr install hyphen-portuguese"
 )
 
 run_ambiguous_resolution_test() (
@@ -1210,7 +1219,7 @@ EOF
     make build
   )
 
-  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo tlmgr install chktex latexindent"
+  assert_log_contains "$sandbox/logs/tlmgr.log" "sudo $sandbox/bin/tlmgr install chktex latexindent"
   assert_log_contains "$sandbox/logs/latexmk.log" "latexmk -cd -pdf -interaction=nonstopmode -file-line-error tex/main.tex"
 )
 

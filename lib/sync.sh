@@ -195,6 +195,15 @@ tlmgr_package_exists() {
   '
 }
 
+tlmgr_package_is_installed() {
+  local package_name="$1"
+
+  tlmgr info --only-installed "${package_name}" 2>/dev/null | awk '
+    /^installed:[[:space:]]+Yes$/ { installed=1 }
+    END { exit !installed }
+  '
+}
+
 lookup_package_override() {
   local kind="$1"
   local logical_name="$2"
@@ -625,7 +634,7 @@ fi
 
 missing_tools=()
 for tool in "${required_tools[@]}"; do
-  if ! tlmgr info --only-installed "${tool}" >/dev/null 2>&1; then
+  if ! tlmgr_package_is_installed "${tool}"; then
     missing_tools+=("${tool}")
   fi
 done
@@ -636,10 +645,11 @@ if [[ ${#missing_tools[@]} -eq 0 ]]; then
 fi
 
 log "Installing missing non-relocatable tools: ${missing_tools[*]}"
-if ! sudo tlmgr install "${missing_tools[@]}"; then
+TLMGR_BIN="$(command -v tlmgr)"
+if ! sudo "${TLMGR_BIN}" install "${missing_tools[@]}"; then
   unresolved_tools=()
   for tool in "${missing_tools[@]}"; do
-    if ! tlmgr info --only-installed "${tool}" >/dev/null 2>&1; then
+    if ! tlmgr_package_is_installed "${tool}"; then
       unresolved_tools+=("${tool}")
     fi
   done
